@@ -1,59 +1,61 @@
-import asyncio
 import json
 import logging
-from functools import lru_cache
 
 import openai
+from fastapi import Depends
 
-from app import config
+from app.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are a real-time message rephraser. Improve the clarity and
-politeness of the user's message.
+SYSTEM_PROMPT = (
+    "You rephrase a draft message. Fix spelling and grammar, keep it polite and "
+    "concise, and give up to three alternative suggestions. Each suggestion must "
+    "be a complete sentence."
+)
 
-1. Correct spelling and grammar.
-2. Give up to three concise alternative suggestions.
-3. Return ONLY a JSON array of strings, with no headers or extra text.
-4. If you run out of tokens, return fewer suggestions rather than an incomplete sentence.
-"""
-
-
-@lru_cache
-def _client() -> openai.OpenAI:
-    return openai.OpenAI(api_key=config.OPENAI_API_KEY)
-
-
-async def rephrase(message: str) -> list[str]:
-    """Return rephrased suggestions without blocking the event loop."""
-    return await asyncio.to_thread(_rephrase_sync, message)
-
-
-def _rephrase_sync(message: str) -> list[str]:
-    response = _client().chat.completions.create(
-        model=config.OPENAI_MODEL,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": message},
-        ],
-        max_tokens=50,
-    )
-    content = response.choices[0].message.content or ""
-    return _complete_sentences(_parse_suggestions(content))
+RESPONSE_FORMAT = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "suggestions",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {"suggestions": {"type": "array", "items": {"type": "string"}}},
+            "required": ["suggestions"],
+            "additionalProperties": False,
+        },
+    },
+}
 
 
-def _parse_suggestions(content: str) -> list[str]:
-    """Parse a JSON array of strings, repairing a reply cut off by max_tokens."""
-    body = content.strip().strip("[]")
-    if not body.endswith('"'):
-        body += '"'
-    try:
-        suggestions = json.loads(f"[{body}]")
-    except json.JSONDecodeError:
-        logger.warning("Could not parse model output: %r", content)
-        return []
-    return [s for s in suggestions if isinstance(s, str)]
+class RephraseService:
+    def __init__(self, client: openai.AsyncOpenAI, model: str) -> None:
+        self._client = client
+        self._model = model
+
+    async def rephrase(self, message: str) -> list[str]:
+        response = await self._client.chat.completions.create(
+            model=self._model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": message},
+            ],
+            response_format=RESPONSE_FORMAT,
+            max_tokens=200,
+        )
+        return self._parse(response.choices[0].message.content or "")
+
+    @staticmethod
+    def _parse(content: str) -> list[str]:
+        try:
+            suggestions = json.loads(content)["suggestions"]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            logger.warning("Unparseable model output: %r", content)
+            return []
+        return [s for s in suggestions if s.endswith((".", "!", "?"))]
 
 
-def _complete_sentences(sentences: list[str]) -> list[str]:
-    return [s for s in sentences if s.endswith((".", "!", "?"))]
+def get_rephrase_service(settings: Settings = Depends(get_settings)) -> RephraseService:
+    client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+    return RephraseService(client, settings.openai_model)

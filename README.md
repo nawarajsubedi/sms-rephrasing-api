@@ -22,12 +22,13 @@ flowchart LR
 
 ```
 app/
-├── main.py            # FastAPI app and routes wiring
-├── config.py          # Environment-based settings
+├── main.py            # FastAPI app, error handling
+├── config.py          # Typed settings from environment
 └── messaging/
     ├── router.py      # HTTP layer
-    ├── service.py     # OpenAI call and output parsing
+    ├── service.py     # OpenAI call (structured JSON output)
     └── schemas.py     # Request/response models
+docs/api.md            # API reference
 examples/              # Standalone experiments (streaming, auto-reply)
 tests/                 # pytest suite (OpenAI is mocked)
 ```
@@ -55,6 +56,8 @@ curl -X POST http://127.0.0.1:8000/message/rephrase \
 { "data": ["I will be back soon.", "I'll return shortly."] }
 ```
 
+See [docs/api.md](docs/api.md) for the full API reference.
+
 ## Tests
 
 ```bash
@@ -64,18 +67,17 @@ pytest
 
 ## Design decisions
 
-- **Sync OpenAI client in a worker thread** (`asyncio.to_thread`) keeps the
-  event loop free without adding an async dependency.
-- **`max_tokens` is kept low for latency**, so replies can be cut off. The
-  service repairs a truncated JSON array and drops any suggestion that is not
-  a complete sentence rather than showing partial text.
+- **Async OpenAI client** keeps the event loop free.
+- **Structured JSON output** (JSON schema) guarantees a parseable reply, so no
+  string repair is needed. Incomplete sentences are still filtered out.
+- **Dependency injection** (`Depends`) lets tests swap in a fake service.
+- **OpenAI failures map to a clean `502`** instead of leaking a stack trace.
 - **Model is configurable** via `OPENAI_MODEL`, so upgrading needs no code change.
-- **The OpenAI client is created once** and reused across requests.
 
 ## Roadmap
 
-- [ ] Structured outputs instead of JSON repair
+- [x] Structured outputs instead of JSON repair
 - [ ] Streaming suggestions
 - [ ] Evaluation set to score suggestion quality
 - [ ] Token cost and latency logging
-- [ ] Dockerfile
+- [x] Dockerfile (`docker build -t sms-rephrasing .`)

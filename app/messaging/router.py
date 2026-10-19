@@ -1,12 +1,14 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.messaging import service
 from app.messaging.schemas import MessageRephrase, RephraseResponse
+from app.messaging.service import RephraseService, get_rephrase_service
 
 router = APIRouter()
 
 
 @router.post("/rephrase", response_model=RephraseResponse)
-async def rephrase(payload: MessageRephrase) -> RephraseResponse:
-    suggestions = await service.rephrase(payload.message)
-    return RephraseResponse(data=suggestions)
+async def rephrase(
+    payload: MessageRephrase,
+    service: RephraseService = Depends(get_rephrase_service),
+) -> RephraseResponse:
+    return RephraseResponse(data=await service.rephrase(payload.message))

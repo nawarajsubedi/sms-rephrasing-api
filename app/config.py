@@ -1,8 +1,16 @@
-import os
+from functools import lru_cache
 
-from dotenv import load_dotenv
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv()
 
-OPENAI_API_KEY = os.getenv("OPEN_AI_SECRET")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    openai_api_key: str = Field(alias="OPEN_AI_SECRET")
+    openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

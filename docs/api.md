@@ -10,9 +10,12 @@ spelling and grammar fixed, polite and concise. Use it to power an
 Draft message  ──►  POST /message/rephrase  ──►  ["Suggestion 1.", "Suggestion 2."]
 ```
 
+There are two versions with the same request and response. **v1** is backed by
+OpenAI, **v2** by Amazon Bedrock.
+
 ## Endpoints
 
-### `POST /message/rephrase`
+### `POST /message/rephrase` (v1, OpenAI) and `POST /v2/message/rephrase` (v2, Bedrock)
 
 **Request body (JSON)**
 
@@ -44,7 +47,7 @@ could not be used. Incomplete sentences are never returned.
 | Status | Meaning                                              |
 |--------|------------------------------------------------------|
 | `422`  | Invalid request (missing field, empty/too-long text) |
-| `502`  | The AI provider (OpenAI) failed or is unreachable    |
+| `502`  | "AI provider unavailable": the provider (OpenAI or Bedrock) failed or is unreachable (also v1 without `OPEN_AI_SECRET`) |
 
 ### `GET /healthcheck`
 
@@ -52,10 +55,18 @@ Returns `{"status": "ok"}`. Use it for uptime checks.
 
 ## Configuration
 
-| Variable        | Required | Default       | Purpose            |
-|-----------------|----------|---------------|--------------------|
-| `OPEN_AI_SECRET`| yes      | —             | OpenAI API key     |
-| `OPENAI_MODEL`  | no       | `gpt-4o-mini` | Model to use       |
+| Variable           | Required         | Default       | Purpose                           |
+|--------------------|------------------|---------------|-----------------------------------|
+| `OPEN_AI_SECRET`   | v1 only          | —             | OpenAI API key (v1 returns 502 without it) |
+| `OPENAI_MODEL`     | no (v1 only)     | `gpt-4o-mini` | OpenAI model                      |
+| `LLM_TIMEOUT_SECONDS` | no            | `30`          | Provider connect/read timeout     |
+| `AWS_REGION`       | no (v2 only)     | `us-east-1`  | Region where model access is on   |
+| `BEDROCK_MODEL_ID` | no (v2 only)     | Claude Haiku profile | Bedrock model or inference profile |
+
+For Bedrock, AWS credentials come from the standard credential chain
+(environment variables, `~/.aws` profile, or IAM role) and are not read from
+`.env` by the app. The identity needs `bedrock:InvokeModel`, and model access
+must be enabled in the region. See the [README](../README.md#configuration).
 
 ## Interactive docs
 

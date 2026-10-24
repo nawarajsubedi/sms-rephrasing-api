@@ -1,3 +1,6 @@
+# NOTE: standalone OpenAI-only experiment. It talks to the OpenAI SDK directly
+# (needs OPEN_AI_SECRET) and does not use the app. To try Bedrock, run the API
+# and call POST /v2/message/rephrase.
 import os
 
 import openai

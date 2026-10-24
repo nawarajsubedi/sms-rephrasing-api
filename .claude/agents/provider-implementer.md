@@ -17,7 +17,7 @@ You implement LLM provider backends for the SMS rephrasing API. You own `app/**`
 
 ## Rules
 
-- Secrets: AWS credentials come from the standard credential chain only. Never add secret fields for them, and never log keys or full request bodies.
+- Secrets: AWS credentials come from the standard credential chain, or the optional `AWS_BEARER_TOKEN_BEDROCK` API key held as a `SecretStr`. Never log keys or full request bodies.
 - Settings are validated at startup; v1 stays on OpenAI so existing behavior is unchanged.
 - Read existing code first and match its style. Run `ruff check .` and an import check before reporting.
 
